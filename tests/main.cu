@@ -126,7 +126,7 @@ int main(void){
         loop on host time: 33.7
         loop on device time: 32.5
         branchless Sigmoid & branchless ReLu 32.4
-        branchless internal to SoftMax 
+        SoftMax with atomic add 31.2
     */
     long int start;
     for(int i = 0; i < 10; i++){
