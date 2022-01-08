@@ -76,9 +76,9 @@ int main(void){
     const char *networkFile = "tests/data/network.txt";
     
     float *network;
-    int layerCount = 3;
+    int layerCount = 4;
     enum activation activations[layerCount] = {None, SoftMax, SoftMax, SoftMax};
-    int nodeCounts[layerCount] = {784, 128, 10};
+    int nodeCounts[layerCount] = {784, 128, 128, 10};
     // int networkSize, i, j;
     
     FILE *f;
@@ -90,14 +90,14 @@ int main(void){
         networkFromFile(networkFile, &network);
     }else{
         // networkSize = 
-        mallocNetwork(nodeCounts, layerCount, &network);
+        mallocNetwork(nodeCounts, &network);
     }
 
     // printf("Network Size: %d\n", networkSize);
 
     fclose(f);
     
-    initializeNetwork(network, activations, nodeCounts, layerCount);
+    initializeNetwork(network, activations, nodeCounts);
 
     mnist_data *training_mnist;
     unsigned int trainingCount;
@@ -118,9 +118,24 @@ int main(void){
     int *batch = (int*)malloc(batchSize * sizeof(int));
     // float trainingSpeed = 0.01;
 
-    long int start = time(NULL);
-    evalCudaNeuralNetwork(d_training_dataset);
-    printf("Time: %ld\n", time(NULL) - start);
+    /*
+        100,000 nn evals (10 trials)
+        model:
+        784, 128, 128, 10
+        None, SoftMax, SoftMax, SoftMax
+        loop on host time: 33.7
+        loop on device time: 32.5
+        branchless Sigmoid & branchless ReLu 32.4
+        branchless internal to SoftMax 
+    */
+    long int start;
+    for(int i = 0; i < 10; i++){
+        printf("Test: %d\n", i + 1);
+        start = time(NULL);
+        evalCudaNeuralNetwork(d_training_dataset);
+        printf("    Time: %ld\n", time(NULL) - start);
+    }
+    printLastOut();
 
     // for(int ep = 0; ep < 100; ep++){
     //     printf("Epoch: %d\n", ep + 1);
