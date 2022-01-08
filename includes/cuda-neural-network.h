@@ -11,13 +11,13 @@ enum activation {
 };
 
 extern float *d_network, *d_training_dataset, *d_testing_dataset, *d_output, *_h_temp, *_d_temp;
-extern int *_node_counts, _layer_count, *training_dataset_labels, training_dataset_size, *testing_dataset_labels, testing_dataset_size, _max_nodes, _network_size, _datum_size, _output_node_count;
+extern int *_node_counts, *training_dataset_labels, training_dataset_size, *testing_dataset_labels, testing_dataset_size, _max_nodes, _network_size, _datum_size, _output_node_count;
 extern activation *_activations;
 
 extern __global__ void cudaInc(float *a, float b);
 
-extern int mallocNetwork(int *nodeCounts, int layerCount, float **network);
-extern void initializeNetwork(float *h_network, activation *activations, int *node_counts, int layer_count);
+extern int mallocNetwork(int *nodeCounts, float **network);
+extern void initializeNetwork(float *h_network, activation *activations, int *node_counts);
 extern void getNetwork(float *h_network);
 extern void setTrainingData(float *h_training_dataset, int *_training_dataset_labels, int _training_dataset_size);
 extern void freeTrainingData();
@@ -29,3 +29,4 @@ extern float _batchLossCuda(float *d_dataset, int *dataset_labels, int *batch, i
 extern void trainCuda(int *batch, int batchSize, float trainingSpeed);
 extern float accuracy();
 extern float confidenceRating(float *output, int *prediction);
+extern void printLastOut();
