@@ -1,0 +1,3 @@
+tests/data
+tests/main.exe
+bin/cuda-neural-network.o
