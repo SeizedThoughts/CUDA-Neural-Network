@@ -134,8 +134,8 @@ int main(void){
         start = time(NULL);
         evalCudaNeuralNetwork(d_training_dataset);
         printf("    Time: %ld\n", time(NULL) - start);
+        printLastOut();
     }
-    printLastOut();
 
     // for(int ep = 0; ep < 100; ep++){
     //     printf("Epoch: %d\n", ep + 1);
