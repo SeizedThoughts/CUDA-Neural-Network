@@ -77,7 +77,7 @@ int main(void){
     
     float *network;
     int layerCount = 4;
-    enum activation activations[layerCount] = {None, SoftMax, SoftMax, SoftMax};
+    enum activation activations[layerCount] = {None, ReLu, Sigmoid, SoftMax};
     int nodeCounts[layerCount] = {784, 128, 128, 10};
     // int networkSize, i, j;
     
@@ -126,16 +126,22 @@ int main(void){
         loop on host time: 33.7
         loop on device time: 32.5
         branchless Sigmoid & branchless ReLu 32.4
-        SoftMax with atomic add 31.2
+
+        1,000,000 nn evals
+        model:
+        784, 128, 128, 10
+        None, ReLu, Sigmoid, SoftMax
+        applyPerceptrons branchful: 306
+        applyPerceptrons branchless ReLu: 307
+        applyPerceptrons branchless ReLu & branchless Sigmoid: 
     */
     long int start;
-    for(int i = 0; i < 10; i++){
-        printf("Test: %d\n", i + 1);
-        start = time(NULL);
-        evalCudaNeuralNetwork(d_training_dataset);
-        printf("    Time: %ld\n", time(NULL) - start);
-        printLastOut();
-    }
+    int timeSpan;
+    start = time(NULL);
+    evalCudaNeuralNetwork(d_training_dataset);
+    timeSpan = time(NULL) - start;
+    printf("Time: %d\n", timeSpan);
+    printLastOut();
 
     // for(int ep = 0; ep < 100; ep++){
     //     printf("Epoch: %d\n", ep + 1);
