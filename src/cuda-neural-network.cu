@@ -18,22 +18,24 @@ inline __device__ void deviceVectorDotProduct(int vector_size, float *a, float *
     }
 }
 
-inline __device__ void deviceApplyPerceptron(float *a, int index, int nodeCount, activation perceptron){
+inline __device__ void deviceApplyPerceptron(float *a, int index, int nodeCount, activation perceptron, int inRange){
     float *point = &a[index];
-    if(perceptron == SoftMax){
-        (*point) = pow(M_E, (*point));
+    if(inRange){
+        if(perceptron == SoftMax){
+            (*point) = pow(M_E, (*point));
 
-        float sum = 0.0;
-        for(int i = 0; i < nodeCount; i++){
-            sum += a[i];
+            float sum = 0.0;
+            for(int i = 0; i < nodeCount; i++){
+                sum += a[i];
+            }
+
+            (*point) /= sum;
+        }else{
+            //ReLu branchless
+            (*point) *= !((perceptron == ReLu) && ((*point) < 0.0));
+            //Sigmoid branchless
+            (*point) = (perceptron != Sigmoid) * (*point) + (perceptron == Sigmoid) / (1 + pow(M_E, -(*point)));
         }
-
-        (*point) /= sum;
-    }else{
-        //ReLu branchless
-        (*point) *= !((perceptron == ReLu) && ((*point) < 0.0));
-        //Sigmoid branchless
-        (*point) = (perceptron != Sigmoid) * (*point) + (perceptron == Sigmoid) * (*point);
     }
 }
 
@@ -51,7 +53,7 @@ inline __device__ void deviceEvalNeuralNetwork(float *input, float *network, int
     int inRange = x < nodeCount;
     activation perceptron = perceptrons[0];
 
-    if(inRange) deviceApplyPerceptron(output, x, nodeCount, perceptron);
+    if(inRange) deviceApplyPerceptron(output, x, nodeCount, perceptron, inRange);
 
     #pragma unroll
     for(int i = 1; i < LAYER_COUNT; i++){
@@ -63,29 +65,27 @@ inline __device__ void deviceEvalNeuralNetwork(float *input, float *network, int
 
         deviceVectorDotProduct(lastNodeCount, input, &network[index], 1, nodeCount, &output[x], inRange);
 
-        // __syncthreads();
-
         index += nodeCount * lastNodeCount;
 
         output[x] += inRange * network[index];
 
-        __syncthreads();
-
         index += nodeCount;
 
-        if(inRange) deviceApplyPerceptron(output, x, nodeCount, perceptron);
-
         __syncthreads();
 
+        if(inRange) deviceApplyPerceptron(output, x, nodeCount, perceptron, inRange);
+
         deviceSwapPtrs(&input, &output);
+
+        __syncthreads();
     }
 
-    if(x < nodeCounts[LAYER_COUNT - 1] && LAYER_COUNT % 2 == 1) output[x] = input[x];
+    output[x] = input[x];
 }
 
 __global__ void cudaEvalNeuralNetwork(float *input, float *network, int *nodeCounts, activation *perceptrons, float *output, int maxNodes){
     int x = threadIdx.x;
-    for(int i = 0; i < 100000; i++){
+    for(int i = 0; i < 1000000; i++){
         temp_array_1[x] = input[x];
         __syncthreads();
         deviceEvalNeuralNetwork(temp_array_1, network, nodeCounts, perceptrons, output, maxNodes);
