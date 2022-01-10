@@ -3,6 +3,12 @@
 #define STOCHASTIC_POINTS 1000
 #define STOCHASTIC_STEPS 10
 
+#define DATUM_SIZE 784
+#define OUTPUT_SIZE 10
+#define MAX_NODES 784
+#define LAYER_COUNT 4
+#define NETWORK_SIZE ((784 + 1) * 128 + (128 + 1) * 128 + (128 + 1) * 10)
+
 enum activation {
     None,
     Sigmoid,
@@ -12,12 +18,11 @@ enum activation {
 
 extern float *d_network, *d_training_dataset, *d_testing_dataset, *_h_temp, *_d_temp;
 extern int *_node_counts, *training_dataset_labels, training_dataset_size, *testing_dataset_labels, testing_dataset_size, _max_nodes, _network_size, _datum_size, _output_node_count;
-extern activation *_activations;
 
 extern __global__ void cudaInc(float *a, float b);
 
-extern int mallocNetwork(int *nodeCounts, float **network);
-extern void initializeNetwork(float *h_network, activation *activations, int *node_counts);
+extern float *mallocNetwork(int *nodeCounts);
+extern void initializeNetwork(float *h_network);
 extern void getNetwork(float *h_network);
 extern void setTrainingData(float *h_training_dataset, int *_training_dataset_labels, int _training_dataset_size);
 extern void freeTrainingData();
