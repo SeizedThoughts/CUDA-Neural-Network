@@ -133,7 +133,14 @@ int main(void){
         None, ReLu, Sigmoid, SoftMax
         applyPerceptrons branchful: 306
         applyPerceptrons branchless ReLu: 307
-        applyPerceptrons branchless ReLu & branchless Sigmoid: 
+        applyPerceptrons branchless ReLu & branchless Sigmoid:
+
+        100,000 nn evals
+        model:
+        784, 128, 128, 10
+        None, ReLu, Sigmoid, SoftMax
+        deviceVectorDotProduct without tmp var in register: ~30
+        deviceVectorDotProduct without tmp var in register: ~15
     */
     long int start;
     int timeSpan;
