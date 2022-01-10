@@ -2,95 +2,94 @@
 #include <math.h>
 #include <cuda-neural-network.h>
 
-float *d_network, *d_training_dataset, *d_testing_dataset, *d_output, *_h_temp, *_d_temp;
-int *_node_counts, *d_node_counts, *training_dataset_labels, training_dataset_size, *testing_dataset_labels, testing_dataset_size, _max_nodes, _network_size, _datum_size, _output_node_count;
-activation *_activations, *d_activations;
+float *d_network, *d_training_dataset, *d_testing_dataset, *_h_temp, *_d_temp;
+int *training_dataset_labels, training_dataset_size, *testing_dataset_labels, testing_dataset_size, _network_size, _datum_size, _output_node_count;
 
-#define BLOCK_SIZE 1024
+#define MAX_NODES 784
 #define LAYER_COUNT 4
+#define NETWORK_SIZE = 784 * 128 + 128 * 128 + 128 * 10
+__device__ const int NODE_COUNTS[LAYER_COUNT] = {784, 128, 128, 10};
+__device__ const activation ACTIVATIONS[LAYER_COUNT] = {None, ReLu, Sigmoid, SoftMax};
 
-__device__ float temp, temp_array_1[BLOCK_SIZE], temp_array_2[BLOCK_SIZE];
+__device__ float d_temp, d_temp_array_1[MAX_NODES], d_temp_array_2[MAX_NODES], d_output[MAX_NODES];
 
-inline __device__ void deviceVectorDotProduct(int vector_size, float *a, float *b, int aInc, int bInc, float *c, int inRange){
-    (*c) = 0.0;
-    for(int i = 0; i < vector_size * inRange; i++){
-        (*c) += a[aInc * i] * b[bInc * i];
+inline __device__ void deviceVectorDotProduct(int vector_size, float *a, float *b, int bInc, float *c){
+    register float tmp = 0.0;
+    
+    for(int i = 0; i < vector_size; i++){
+        tmp += a[i] * b[i * bInc];
     }
+    
+    (*c) = tmp;
 }
 
-inline __device__ void deviceApplyPerceptron(float *a, int index, int nodeCount, activation perceptron, int inRange){
+inline __device__ void deviceApplyPerceptron(float *a, int index, int nodeCount, activation perceptron){
     float *point = &a[index];
-    if(inRange){
-        if(perceptron == SoftMax){
-            (*point) = pow(M_E, (*point));
+    if(perceptron == SoftMax){
+        (*point) = pow(M_E, (*point));
 
-            float sum = 0.0;
-            for(int i = 0; i < nodeCount; i++){
-                sum += a[i];
-            }
-
-            (*point) /= sum;
-        }else{
-            //ReLu branchless
-            (*point) *= !((perceptron == ReLu) && ((*point) < 0.0));
-            //Sigmoid branchless
-            (*point) = (perceptron != Sigmoid) * (*point) + (perceptron == Sigmoid) / (1 + pow(M_E, -(*point)));
+        float sum = 0.0;
+        for(int i = 0; i < nodeCount; i++){
+            sum += a[i];
         }
+
+        (*point) /= sum;
+    }else{
+        //ReLu branchless
+        (*point) *= !((perceptron == ReLu) && ((*point) < 0.0));
+        //Sigmoid branchless
+        (*point) = (perceptron != Sigmoid) * (*point) + (perceptron == Sigmoid) / (1 + pow(M_E, -(*point)));
     }
 }
 
-inline __device__ void deviceSwapPtrs(float **ptr1, float **ptr2){
-    float *tmp = *ptr1;
-    *ptr1 = *ptr2;
-    *ptr2 = tmp;
-}
-
-inline __device__ void deviceEvalNeuralNetwork(float *input, float *network, int *nodeCounts, activation *perceptrons, float *output, int maxNodes){
+inline __device__ void deviceEvalNeuralNetwork(float *input, float *network){
     int x = threadIdx.x;
+    d_temp_array_1[x] = input[x];
+    __syncthreads();
     int index = x;
     int lastNodeCount;
-    int nodeCount = nodeCounts[0];
+    int nodeCount = NODE_COUNTS[0];
     int inRange = x < nodeCount;
-    activation perceptron = perceptrons[0];
+    activation perceptron = ACTIVATIONS[0];
 
-    if(inRange) deviceApplyPerceptron(output, x, nodeCount, perceptron, inRange);
+    if(inRange) deviceApplyPerceptron(d_output, x, nodeCount, perceptron);
 
     #pragma unroll
     for(int i = 1; i < LAYER_COUNT; i++){
-        temp = 0.0;
         lastNodeCount = nodeCount;
-        nodeCount = nodeCounts[i];
+        nodeCount = NODE_COUNTS[i];
         inRange = x < nodeCount;
-        perceptron = perceptrons[i];
+        perceptron = ACTIVATIONS[i];
+        __syncthreads();
 
-        deviceVectorDotProduct(lastNodeCount, input, &network[index], 1, nodeCount, &output[x], inRange);
+        if(inRange) deviceVectorDotProduct(lastNodeCount, d_temp_array_1, &network[index], nodeCount, &d_output[x]);
 
         index += nodeCount * lastNodeCount;
 
-        output[x] += inRange * network[index];
+        d_output[x] += inRange * network[index];
 
         index += nodeCount;
 
-        __syncthreads();
+        if(perceptron != SoftMax) __syncthreads();
 
-        if(inRange) deviceApplyPerceptron(output, x, nodeCount, perceptron, inRange);
+        if(inRange) deviceApplyPerceptron(d_output, x, nodeCount, perceptron);
 
-        deviceSwapPtrs(&input, &output);
-
-        __syncthreads();
+        d_temp_array_1[x] = d_output[x];
     }
 
-    output[x] = input[x];
+    d_output[x] = d_temp_array_1[x];
+    __syncthreads();
 }
 
-__global__ void cudaEvalNeuralNetwork(float *input, float *network, int *nodeCounts, activation *perceptrons, float *output, int maxNodes){
-    int x = threadIdx.x;
-    for(int i = 0; i < 1000000; i++){
-        temp_array_1[x] = input[x];
-        __syncthreads();
-        deviceEvalNeuralNetwork(temp_array_1, network, nodeCounts, perceptrons, output, maxNodes);
-        __syncthreads();
+__global__ void cudaEvalNeuralNetwork(float *input, float *network){
+    for(int i = 0; i < 100000; i++){
+        deviceEvalNeuralNetwork(input, network);
     }
+}
+
+__global__ void cudaCpyOut(float *out){
+    int x = threadIdx.x;
+    out[x] = d_output[x];
 }
 
 __global__ void cudaInc(float *a, float b){
@@ -129,38 +128,22 @@ int mallocNetwork(int *nodeCounts, float **network){
 
 void initializeNetwork(float *h_network, activation *activations, int *node_counts){
     int i;
-    _node_counts = (int*)malloc(LAYER_COUNT * sizeof(int));
-    _activations = (activation*)malloc(LAYER_COUNT * sizeof(activation));
-    
-    #pragma unroll
-    for(i = 0; i < LAYER_COUNT; i++){
-        _node_counts[i] = node_counts[i];
-        _activations[i] = activations[i];
-    }
 
-    cudaMalloc(&d_node_counts, LAYER_COUNT * sizeof(int));
-    cudaMemcpy(d_node_counts, _node_counts, LAYER_COUNT * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMalloc(&d_activations, LAYER_COUNT * sizeof(activation));
-    cudaMemcpy(d_activations, _activations, LAYER_COUNT * sizeof(activation), cudaMemcpyHostToDevice);
-    
     _network_size = 0;
-    _datum_size = _node_counts[0];
-    _output_node_count = _node_counts[LAYER_COUNT - 1];
-    _max_nodes = _node_counts[0];
+    _datum_size = node_counts[0];
+    _output_node_count = node_counts[LAYER_COUNT - 1];
 
     #pragma unroll
     for(i = 1; i < LAYER_COUNT; i++){
-        _network_size += _node_counts[i] * (_node_counts[i - 1] + 1);
-        if(_node_counts[i] > _max_nodes) _max_nodes = _node_counts[i];
+        _network_size += node_counts[i] * (node_counts[i - 1] + 1);
     }
 
     cudaMalloc(&d_network, _network_size * sizeof(float));
     cudaMemcpy(d_network, h_network, _network_size * sizeof(float), cudaMemcpyHostToDevice);
 
-    _h_temp = (float*)malloc(_max_nodes * sizeof(float));
+    _h_temp = (float*)malloc(MAX_NODES * sizeof(float));
 
-    cudaMalloc(&_d_temp, _max_nodes * sizeof(float));
-    cudaMalloc(&d_output, _max_nodes * sizeof(float));
+    cudaMalloc(&_d_temp, MAX_NODES * sizeof(float));
 }
 
 void getNetwork(float *h_network){
@@ -204,12 +187,14 @@ inline void _swapPointers(float **a, float **b){
 }
 
 inline void _evalCudaNeuralNetwork(float *d_input){
-    cudaEvalNeuralNetwork<<<1, BLOCK_SIZE>>>(d_input, d_network, d_node_counts, d_activations, d_output, _max_nodes);
+    cudaEvalNeuralNetwork<<<1, MAX_NODES>>>(d_input, d_network);
     cudaDeviceSynchronize();
 }
 
 void printLastOut(){
-    cudaMemcpy(_h_temp, d_output, _output_node_count * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaCpyOut<<<1, MAX_NODES>>>(_d_temp);
+    cudaDeviceSynchronize();
+    cudaMemcpy(_h_temp, _d_temp, _output_node_count * sizeof(float), cudaMemcpyDeviceToHost);
     for(int i = 0; i < _output_node_count; i++){
         printf("out[%d]: %f\n", i, _h_temp[i]);
     }
@@ -257,31 +242,31 @@ void trainCuda(int *batch, int batchSize, float trainingSpeed){
     }
 }
 
-float accuracy(){
-    int correct = 0;
-    float v;
-    int j, prediction;
-    float *h_output = (float*)malloc(_output_node_count * sizeof(float));
+// float accuracy(){
+//     int correct = 0;
+//     float v;
+//     int j, prediction;
+//     float *h_output = (float*)malloc(_output_node_count * sizeof(float));
 
-    for(int i = 0; i < testing_dataset_size; i++){
-        _evalCudaNeuralNetwork(&d_testing_dataset[_datum_size * i]);
-        cudaMemcpy(h_output, d_output, _output_node_count * sizeof(float), cudaMemcpyDeviceToHost);
+//     for(int i = 0; i < testing_dataset_size; i++){
+//         _evalCudaNeuralNetwork(&d_testing_dataset[_datum_size * i]);
+//         cudaMemcpy(h_output, d_output, _output_node_count * sizeof(float), cudaMemcpyDeviceToHost);
         
-        v = h_output[0];
-        prediction = 0;
+//         v = h_output[0];
+//         prediction = 0;
 
-        for(j = 1; j < _node_counts[LAYER_COUNT - 1]; j++){
-            if(h_output[j] > v){
-                v = h_output[j];
-                prediction = j;
-            }
-        }
+//         for(j = 1; j < node_counts[LAYER_COUNT - 1]; j++){
+//             if(h_output[j] > v){
+//                 v = h_output[j];
+//                 prediction = j;
+//             }
+//         }
 
-        if(prediction == testing_dataset_labels[i]) correct++;
-    }
+//         if(prediction == testing_dataset_labels[i]) correct++;
+//     }
 
-    return (float)correct / (float)testing_dataset_size;
-}
+//     return (float)correct / (float)testing_dataset_size;
+// }
 
 float confidenceRating(float *output, int *prediction){
     (*prediction) = 0;

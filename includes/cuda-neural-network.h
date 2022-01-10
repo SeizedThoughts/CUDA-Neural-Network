@@ -10,7 +10,7 @@ enum activation {
     ReLu
 };
 
-extern float *d_network, *d_training_dataset, *d_testing_dataset, *d_output, *_h_temp, *_d_temp;
+extern float *d_network, *d_training_dataset, *d_testing_dataset, *_h_temp, *_d_temp;
 extern int *_node_counts, *training_dataset_labels, training_dataset_size, *testing_dataset_labels, testing_dataset_size, _max_nodes, _network_size, _datum_size, _output_node_count;
 extern activation *_activations;
 
