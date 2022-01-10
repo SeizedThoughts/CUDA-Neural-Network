@@ -77,27 +77,22 @@ int main(void){
     
     float *network;
     int layerCount = 4;
-    enum activation activations[layerCount] = {None, ReLu, Sigmoid, SoftMax};
     int nodeCounts[layerCount] = {784, 128, 128, 10};
-    // int networkSize, i, j;
+    // int i, j;
     
     FILE *f;
 
     f = fopen(networkFile, "a+");
 
     if(getc(f) != EOF){
-        // networkSize = 
         networkFromFile(networkFile, &network);
     }else{
-        // networkSize = 
-        mallocNetwork(nodeCounts, &network);
+        network = mallocNetwork(nodeCounts);
     }
-
-    // printf("Network Size: %d\n", networkSize);
 
     fclose(f);
     
-    initializeNetwork(network, activations, nodeCounts);
+    initializeNetwork(network);
 
     mnist_data *training_mnist;
     unsigned int trainingCount;
@@ -142,6 +137,7 @@ int main(void){
         deviceVectorDotProduct without tmp var in register: ~30
         deviceVectorDotProduct without tmp var in register: ~15
     */
+
     long int start;
     int timeSpan;
     start = time(NULL);
