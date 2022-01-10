@@ -24,22 +24,23 @@ inline __device__ void deviceVectorDotProduct(int vector_size, float *a, float *
 }
 
 inline __device__ void deviceApplyPerceptron(float *a, int index, int nodeCount, activation perceptron){
-    float *point = &a[index];
+    register float tmp = a[index];
+    
     if(perceptron == SoftMax){
-        (*point) = pow(M_E, (*point));
-
         float sum = 0.0;
         for(int i = 0; i < nodeCount; i++){
             sum += a[i];
         }
 
-        (*point) /= sum;
+        tmp /= sum;
     }else{
         //ReLu branchless
-        (*point) *= !((perceptron == ReLu) && ((*point) < 0.0));
+        tmp *= !((perceptron == ReLu) && (tmp < 0.0));
         //Sigmoid branchless
-        (*point) = (perceptron != Sigmoid) * (*point) + (perceptron == Sigmoid) / (1 + pow(M_E, -(*point)));
+        tmp = (perceptron != Sigmoid) * tmp + (perceptron == Sigmoid) / (1 + pow(M_E, -tmp));
     }
+
+    a[index] = tmp;
 }
 
 inline __device__ void deviceEvalNeuralNetwork(float *input, float *network){
@@ -70,7 +71,10 @@ inline __device__ void deviceEvalNeuralNetwork(float *input, float *network){
 
         index += nodeCount;
 
-        if(perceptron != SoftMax) __syncthreads();
+        if(perceptron == SoftMax){
+            if(inRange) d_output[x] = pow(M_E, d_output[x]);
+            __syncthreads();
+        }
 
         if(inRange) deviceApplyPerceptron(d_output, x, nodeCount, perceptron);
 
