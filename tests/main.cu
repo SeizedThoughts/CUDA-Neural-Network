@@ -135,7 +135,7 @@ int main(void){
         784, 128, 128, 10
         None, ReLu, Sigmoid, SoftMax
         deviceVectorDotProduct without tmp var in register: ~30
-        deviceVectorDotProduct without tmp var in register: ~15
+        deviceVectorDotProduct with tmp var in register: ~15
     */
 
     long int start;
