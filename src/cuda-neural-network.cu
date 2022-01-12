@@ -76,14 +76,13 @@ inline __device__ void deviceEvalNeuralNetwork(float *input, float *network){
 
         index += nodeCount;
 
-        if(perceptron == SoftMax){
-            if(inRange) tmp = pow(M_E, tmp);
-            __syncthreads();
-        }
+        if(inRange && perceptron == SoftMax) tmp = pow(M_E, tmp);
+        
+        d_output[x] = tmp;
+
+        if(perceptron == SoftMax) __syncthreads();
 
         if(inRange){
-            d_output[x] = tmp;
-
             deviceApplyPerceptron(d_output, x, nodeCount, perceptron);
 
             d_temp_array_1[x] = d_output[x];
