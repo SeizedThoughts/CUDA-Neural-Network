@@ -1,26 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define BACKPROP
+
 #include <cuda-neural-network.h>
 
 #define USE_MNIST_LOADER
 
 #include "mnist.h"
-
-void makeBatch(int dataSetSize, int *batch, int batchSize){
-    for(int i = 0; i < batchSize; i++){
-        batch[i] = rand() % dataSetSize;
-
-        for(int j = 0; j < i; j++){
-            if(batch[j] == batch[i]){
-                i--;
-                break;
-            }
-        }
-
-        //todo: remove stuff at the top of the rand range
-    }
-}
 
 void load(const char *imagePath, const char *labelPath, mnist_data **mnistData, float **data, int **labels, unsigned int *count){
     mnist_load(imagePath, labelPath, mnistData, count);
@@ -71,24 +58,56 @@ void writeNetworkToFile(const char *file, float *network, int networkSize){
     fclose(f);
 }
 
+void printImg(float *img){
+    for(int i = 0; i < 28; i++){
+        for(int j = 0; j < 28; j++){
+            if(img[i * 28 + j] > 0.5) printf("&");
+            else printf(".");
+        }
+        printf("\n");
+    }
+}
+
+void shuffle(int *array, int size){
+    int tmp, j;
+    for(int i = size - 1; i >= 1; i--){
+        j = rand() % i;
+        tmp = array[i];
+        array[i] = array[j];
+        array[j] = tmp;
+    }
+}
+
+int *makeBatches(int data_set_size){
+    int *batches = (int*)malloc(data_set_size * sizeof(int));
+
+    for(int i = 0; i < data_set_size; i++){
+        batches[i] = i;
+    }
+
+    shuffle(batches, data_set_size);
+
+    return batches;
+}
+
 int main(void){
     srand(0);
     const char *networkFile = "tests/data/network.txt";
     
     float *network;
     int layerCount = 4;
-    int nodeCounts[layerCount] = {784, 128, 128, 10};
+    int nodeCounts[layerCount] = {784, 128, 64, 10};
     // int i, j;
     
     FILE *f;
 
     f = fopen(networkFile, "a+");
 
-    if(getc(f) != EOF){
-        networkFromFile(networkFile, &network);
-    }else{
+    // if(getc(f) != EOF){
+    //     networkFromFile(networkFile, &network);
+    // }else{
         network = mallocNetwork(nodeCounts);
-    }
+    // }
 
     fclose(f);
     
@@ -109,8 +128,6 @@ int main(void){
     setTrainingData(trainingImgs, trainingLabels, trainingCount);
     setTestingData(testingImgs, testingLabels, testingCount);
 
-    int batchSize = 1;
-    int *batch = (int*)malloc(batchSize * sizeof(int));
     // float trainingSpeed = 0.01;
 
     /*
@@ -139,12 +156,30 @@ int main(void){
     */
 
     long int start;
-    int timeSpan;
-    start = time(NULL);
-    evalCudaNeuralNetwork(d_training_dataset);
-    timeSpan = time(NULL) - start;
-    printf("Time: %d\n", timeSpan);
-    printLastOut();
+    int batch_size = 500;
+    int *batches = makeBatches(trainingCount);
+    for(int e = 0; e < 10000; e++){
+        start = time(NULL);
+        for(int b = 0; b < trainingCount / batch_size; b++){
+            trainOnBatch(&batches[b * batch_size], batch_size);
+        }
+        printf("Time: %d\n", (int)(time(NULL) - start));
+
+        // printf("Number done: %d\n", trainingCount);
+        // printf("Img: %d\n", batches[trainingCount - 1]);
+        // printf("Expected: %d\n", training_dataset_labels[batches[trainingCount - 1]]);
+        // printLastOut();
+        // printImg(&trainingImgs[batches[trainingCount - 1] * INPUT_SIZE]);
+
+        printf("Epoch: %d\n", e);
+        printf("Loss: %f\n", loss());
+        printf("Accuracy: %f\n", accuracy());
+
+
+        getNetwork(network);
+        writeNetworkToFile(networkFile, network, NETWORK_SIZE);
+        batches = makeBatches(trainingCount);
+    }
 
     // for(int ep = 0; ep < 100; ep++){
     //     printf("Epoch: %d\n", ep + 1);
@@ -158,10 +193,13 @@ int main(void){
     //         //printf("        Round %d complete.\n", i + 1);
     //     }
 
-    //     getNetwork(network);
-    //     writeNetworkToFile(networkFile, network, networkSize);
+        // getNetwork(network);
+        // writeNetworkToFile(networkFile, network, NETWORK_SIZE);
     //     printf("    Post-Epoch Accuracy: %f%%\n\n", 100.0 * accuracy());
     // }
+
+    getNetwork(network);
+    writeNetworkToFile(networkFile, network, NETWORK_SIZE);
 
     free(network);
 

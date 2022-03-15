@@ -1,13 +1,18 @@
-#define DELTA_WEIGHT 0.01
+#define LEARNING_RATE 0.001
 
-#define STOCHASTIC_POINTS 1000
-#define STOCHASTIC_STEPS 10
-
-#define DATUM_SIZE 784
+#define INPUT_SIZE 784
 #define OUTPUT_SIZE 10
 #define MAX_NODES 784
 #define LAYER_COUNT 4
-#define NETWORK_SIZE ((784 + 1) * 128 + (128 + 1) * 128 + (128 + 1) * 10)
+#define NETWORK_SIZE ((784 + 1) * 128 + (128 + 1) * 64 + (64 + 1) * 10)
+#define ALL_OUT_SIZE (784 + 128 + 64 + 10)
+
+// #define INPUT_SIZE 2
+// #define OUTPUT_SIZE 10
+// #define MAX_NODES 10
+// #define LAYER_COUNT 4
+// #define NETWORK_SIZE ((2 + 1) * 4 + (4 + 1) * 6 + (6 + 1) * 10)
+// #define ALL_OUT_SIZE (2 + 4 + 6 + 10)
 
 enum activation {
     None,
@@ -17,7 +22,7 @@ enum activation {
 };
 
 extern float *d_network, *d_training_dataset, *d_testing_dataset, *_h_temp, *_d_temp;
-extern int *_node_counts, *training_dataset_labels, training_dataset_size, *testing_dataset_labels, testing_dataset_size, _max_nodes, _network_size, _datum_size, _output_node_count;
+extern int *_node_counts, *training_dataset_labels, training_dataset_size, *testing_dataset_labels, testing_dataset_size, _max_nodes, _network_size, _output_node_count;
 
 extern __global__ void cudaInc(float *a, float b);
 
@@ -35,3 +40,6 @@ extern void trainCuda(int *batch, int batchSize, float trainingSpeed);
 extern float accuracy();
 extern float confidenceRating(float *output, int *prediction);
 extern void printLastOut();
+extern void trainOnBatch(int *batch, int batch_size);
+extern void train();
+extern float loss();
